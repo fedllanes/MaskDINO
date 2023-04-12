@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 
+"""
 try:
     import MultiScaleDeformableAttention as MSDA
 except ModuleNotFoundError as e:
@@ -27,7 +28,12 @@ except ModuleNotFoundError as e:
         "\t`sh make.sh`\n"
     )
     raise ModuleNotFoundError(info_string)
+"""
+class MSDeformAttnFunction(Function):
+    pass
 
+"""
+def ms_deform_attn_core_pytorch(value, value_spatial_shapes, sampling_locations, attention_weights):
 
 class MSDeformAttnFunction(Function):
     @staticmethod
@@ -47,7 +53,7 @@ class MSDeformAttnFunction(Function):
                 value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, grad_output, ctx.im2col_step)
 
         return grad_value, None, None, grad_sampling_loc, grad_attn_weight, None
-
+"""
 
 def ms_deform_attn_core_pytorch(value, value_spatial_shapes, sampling_locations, attention_weights):
     # for debug and test only,
