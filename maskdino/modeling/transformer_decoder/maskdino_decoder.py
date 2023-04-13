@@ -198,10 +198,12 @@ class MaskDINODecoder(nn.Module):
             :param refpoint_emb: positional anchor queries in the matching part
             :param batch_size: bs
             """
+
+        device = tgt.device
         if self.training:
             scalar, noise_scale = self.dn_num,self.noise_scale
 
-            known = [(torch.ones_like(t['labels'])).cuda() for t in targets]
+            known = [(torch.ones_like(t['labels'])).to(device) for t in targets]
             know_idx = [torch.nonzero(t) for t in known]
             known_num = [sum(k) for k in known]
 
@@ -245,17 +247,17 @@ class MaskDINODecoder(nn.Module):
                 diff[:, :2] = known_bbox_expand[:, 2:] / 2
                 diff[:, 2:] = known_bbox_expand[:, 2:]
                 known_bbox_expand += torch.mul((torch.rand_like(known_bbox_expand) * 2 - 1.0),
-                                               diff).cuda() * noise_scale
+                                               diff).to(device) * noise_scale
                 known_bbox_expand = known_bbox_expand.clamp(min=0.0, max=1.0)
 
-            m = known_labels_expaned.long().to('cuda')
+            m = known_labels_expaned.long().to(device)
             input_label_embed = self.label_enc(m)
             input_bbox_embed = inverse_sigmoid(known_bbox_expand)
             single_pad = int(max(known_num))
             pad_size = int(single_pad * scalar)
 
-            padding_label = torch.zeros(pad_size, self.hidden_dim).cuda()
-            padding_bbox = torch.zeros(pad_size, 4).cuda()
+            padding_label = torch.zeros(pad_size, self.hidden_dim).to(device)
+            padding_bbox = torch.zeros(pad_size, 4).to(device)
 
             if not refpoint_emb is None:
                 input_query_label = torch.cat([padding_label, tgt], dim=0).repeat(batch_size, 1, 1)
@@ -265,7 +267,7 @@ class MaskDINODecoder(nn.Module):
                 input_query_bbox = padding_bbox.repeat(batch_size, 1, 1)
 
             # map
-            map_known_indice = torch.tensor([]).to('cuda')
+            map_known_indice = torch.tensor([]).to(device)
             if len(known_num):
                 map_known_indice = torch.cat([torch.tensor(range(num)) for num in known_num])  # [1,2, 1,2,3]
                 map_known_indice = torch.cat([map_known_indice + single_pad * i for i in range(scalar)]).long()
@@ -274,7 +276,7 @@ class MaskDINODecoder(nn.Module):
                 input_query_bbox[(known_bid.long(), map_known_indice)] = input_bbox_embed
 
             tgt_size = pad_size + self.num_queries
-            attn_mask = torch.ones(tgt_size, tgt_size).to('cuda') < 0
+            attn_mask = torch.ones(tgt_size, tgt_size).to(device) < 0
             # match query cannot see the reconstruct
             attn_mask[pad_size:, :pad_size] = True
             # reconstruct cannot see each other
@@ -378,6 +380,7 @@ class MaskDINODecoder(nn.Module):
                     enable_mask = 1
         if enable_mask == 0:
             masks = [torch.zeros((src.size(0), src.size(2), src.size(3)), device=src.device, dtype=torch.bool) for src in x]
+        device = x[0].device
         src_flatten = []
         mask_flatten = []
         spatial_shapes = []
@@ -426,13 +429,13 @@ class MaskDINODecoder(nn.Module):
                 flaten_mask = outputs_mask.detach().flatten(0, 1)
                 h, w = outputs_mask.shape[-2:]
                 if self.initialize_box_type == 'bitmask':  # slower, but more accurate
-                    refpoint_embed = BitMasks(flaten_mask > 0).get_bounding_boxes().tensor.cuda()
+                    refpoint_embed = BitMasks(flaten_mask > 0).get_bounding_boxes().tensor.to(device)
                 elif self.initialize_box_type == 'mask2box':  # faster conversion
-                    refpoint_embed = box_ops.masks_to_boxes(flaten_mask > 0).cuda()
+                    refpoint_embed = box_ops.masks_to_boxes(flaten_mask > 0).to(device)
                 else:
                     assert NotImplementedError
                 refpoint_embed = box_ops.box_xyxy_to_cxcywh(refpoint_embed) / torch.as_tensor([w, h, w, h],
-                                                                                              dtype=torch.float).cuda()
+                                                                                              dtype=torch.float).to(device)
                 refpoint_embed = refpoint_embed.reshape(outputs_mask.shape[0], outputs_mask.shape[1], 4)
                 refpoint_embed = inverse_sigmoid(refpoint_embed)
         elif not self.two_stage:
